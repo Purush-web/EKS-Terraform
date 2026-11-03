@@ -1,8 +1,9 @@
+
 name: infra Terraform
 
 on:
   workflow_dispatch:
-        inputs:
+    inputs:
       action:
         description: "Terraform action"
         required: true
@@ -11,29 +12,23 @@ on:
           - apply
           - destroy
         default: apply
+
 env:
   AWS_REGION: us-east-1
   TF_VERSION: "1.12.2"
   TF_WORKING_DIR: EKS-Terraform
 
 jobs:
-
   terraform:
-    name: Terraform Validate, Plan & Apply
+    name: Terraform Apply or Destroy
     runs-on: ubuntu-latest
 
     steps:
-
-      # ============================================================
       # CHECKOUT REPOSITORY
-      # ============================================================
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-
-      # ============================================================
       # AWS AUTHENTICATION
-      # ============================================================
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -42,69 +37,42 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify AWS Identity
-        run: |
-          aws sts get-caller-identity
+        run: aws sts get-caller-identity
 
-
-      # ============================================================
       # TERRAFORM SETUP
-      # ============================================================
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Version
-        run: |
-          terraform version
-
-
-      # ============================================================
-      # TERRAFORM INIT
-      # ============================================================
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform init
-          
+        run: terraform init
 
-      # ============================================================
-      # TERRAFORM VALIDATE
-      # ============================================================
+      # VALIDATE
       - name: Terraform Validate
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform validate
+        run: terraform validate
+
+      # APPLY WORKFLOW
+      - name: Terraform Plan
+        if: ${{ inputs.action == 'apply' }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform plan -out=tfplan
+
       - name: Terraform Apply
         if: ${{ inputs.action == 'apply' }}
-        run: terraform apply -auto-approve
-          
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve tfplan
+
+      # DESTROY WORKFLOW
       - name: Terraform Destroy
         if: ${{ inputs.action == 'destroy' }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform destroy -auto-approve
 
-      # ============================================================
-      # TERRAFORM PLAN
-      # ============================================================
-      - name: Terraform Plan
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform plan -out=tfplan
-
-
-      # ============================================================
-      # TERRAFORM APPLY
-      # ============================================================
-      - name: Terraform Apply
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform apply -auto-approve tfplan
-
-
-      # ============================================================
-      # TERRAFORM OUTPUTS
-      # ============================================================
+      # OUTPUTS - APPLY ONLY
       - name: Terraform Outputs
+        if: ${{ inputs.action == 'apply' }}
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform output
+        run: terraform output
